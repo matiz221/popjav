@@ -1,0 +1,23 @@
+package game;
+
+public class Player {
+    private final String name;
+    private Duel duel;
+
+    public Player(String name) {
+        this.name = name;
+    }
+
+    public String getName() { return name; }
+
+    void enterDuel(Duel duel) { this.duel = duel; }
+    void leaveDuel() { this.duel = null; }
+
+    public boolean isDuelling() { return this.duel != null; }
+
+    public void makeGesture(Gesture gesture) {
+        if (duel != null) {
+            duel.handleGesture(this, gesture);
+        }
+    }
+}
