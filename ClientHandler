@@ -1,0 +1,70 @@
+package server;
+
+import game.Player;
+import game.Gesture;
+
+import java.io.*;
+import java.net.Socket;
+
+public class ClientHandler extends Player implements Runnable {
+    private final Server server;
+    private final Socket socket;
+    private final PrintWriter out;
+    private final BufferedReader in;
+
+    private String login;
+
+    public ClientHandler(Server server, Socket socket) throws IOException {
+        super("unknown");
+        this.server = server;
+        this.socket = socket;
+        this.out = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
+        this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+    }
+
+    void send(String message) { out.println(message); }
+    public String getLogin() { return login; }
+
+    @Override
+    public void run() {
+        try {
+            // Autentykacja
+            out.println("LOGIN:");
+            String providedLogin = in.readLine();
+            if (providedLogin == null) return;
+
+            out.println("PASSWORD:");
+            String providedPassword = in.readLine();
+            if (providedPassword == null) return;
+
+            boolean ok = server.getDatabase().authenticate(providedLogin, providedPassword);
+
+            if (!ok) {
+                out.println("AUTH_FAILED");
+                socket.close();
+                return;
+            }
+
+            this.login = providedLogin;
+            out.println("AUTH_OK");
+
+            // Pętla komunikacji
+            String line;
+            while ((line = in.readLine()) != null) {
+                if (isDuelling()) {
+                    Gesture g = Gesture.fromString(line);
+                    if (g != null) {
+                        makeGesture(g);
+                    }
+                    // inne wiadomości ignorujemy w trakcie pojedynku
+                } else {
+                    server.challengeToDuel(this, line);
+                }
+            }
+        } catch (IOException ignored) {
+        } finally {
+            try { socket.close(); } catch (IOException ignored) {}
+            server.removeClient(this);
+        }
+    }
+}
