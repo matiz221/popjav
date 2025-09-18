@@ -1,0 +1,18 @@
+package game;
+
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
+class DuelTest {
+
+    @Test
+    void playersAreDuellingAfterDuelCreated() {
+        Player p1 = new Player("Alice");
+        Player p2 = new Player("Bob");
+
+        Duel duel = new Duel(p1, p2);
+
+        assertTrue(p1.isDuelling(), "Player 1 should be marked as duelling");
+        assertTrue(p2.isDuelling(), "Player 2 should be marked as duelling");
+    }
+}
