@@ -1,0 +1,35 @@
+package game;
+
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
+class DuelEvaluateTest {
+
+    @Test
+    void evaluate_returnsWinnerAndLoser_whenPlayer1Wins() {
+        Player p1 = new Player("Alice");
+        Player p2 = new Player("Bob");
+        Duel duel = new Duel(p1, p2);
+
+        p1.makeGesture(Gesture.ROCK);
+        p2.makeGesture(Gesture.SCISSORS);
+
+        Duel.Result result = duel.evaluate();
+
+        assertNotNull(result, "Powinien być rozstrzygnięty pojedynek");
+        assertEquals(p1, result.winner(), "Zwycięzcą powinien być player1");
+        assertEquals(p2, result.loser(),  "Przegranym powinien być player2");
+    }
+
+    @Test
+    void evaluate_returnsNull_onDraw() {
+        Player p1 = new Player("Alice");
+        Player p2 = new Player("Bob");
+        Duel duel = new Duel(p1, p2);
+
+        p1.makeGesture(Gesture.PAPER);
+        p2.makeGesture(Gesture.PAPER);
+
+        assertNull(duel.evaluate(), "Przy remisie metoda powinna zwracać null");
+    }
+}
