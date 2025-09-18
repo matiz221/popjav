@@ -1,0 +1,110 @@
+package server;
+
+import game.Duel;
+
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.*;
+
+public class Server {
+    private static final int PORT = 12345;
+
+    private final List<ClientHandler> clients = Collections.synchronizedList(new ArrayList<>());
+    private final Database database = new Database();
+
+    public void listen() {
+        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
+            while (true) {
+                Socket client = serverSocket.accept();
+                try {
+                    ClientHandler handler = new ClientHandler(this, client);
+                    addClient(handler);
+                    sendMessage(handler, "Witaj! Połączono z serwerem.");
+                    new Thread(handler).start();
+                } catch (IOException e) {
+                    client.close();
+                }
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    void addClient(ClientHandler client) { clients.add(client); }
+    void removeClient(ClientHandler client) { clients.remove(client); }
+
+    public void sendMessage(ClientHandler client, String message) { client.send(message); }
+
+    public Database getDatabase() { return database; }
+
+    private void printLeaderboard() {
+        Map<String, Integer> lb = database.getLeaderboard();
+        System.out.println("== LEADERBOARD ==");
+        int i = 1;
+        for (Map.Entry<String, Integer> e : lb.entrySet()) {
+            System.out.printf("%d. %s : %d%n", i++, e.getKey(), e.getValue());
+        }
+    }
+
+    public void challengeToDuel(ClientHandler challenger, String challengeeLogin) {
+        if (challengeeLogin == null || challengeeLogin.isEmpty()) {
+            sendMessage(challenger, "Podaj login przeciwnika.");
+            return;
+        }
+        if (challengeeLogin.equals(challenger.getLogin())) {
+            sendMessage(challenger, "Nie możesz wyzwać samego siebie.");
+            return;
+        }
+        ClientHandler target = null;
+        synchronized (clients) {
+            for (ClientHandler ch : clients) {
+                if (challengeeLogin.equals(ch.getLogin())) {
+                    target = ch;
+                    break;
+                }
+            }
+        }
+        if (target == null) {
+            sendMessage(challenger, "Nie znaleziono użytkownika o loginie: " + challengeeLogin);
+            return;
+        }
+        if (target.isDuelling()) {
+            sendMessage(challenger, "Użytkownik " + challengeeLogin + " jest już w pojedynku.");
+            return;
+        }
+        startDuel(challenger, target);
+    }
+
+    private void startDuel(ClientHandler challenger, ClientHandler challengee) {
+        Duel duel = new Duel(challenger, challengee);
+
+        sendMessage(challenger, "DUEL_STARTED_WITH " + challengee.getLogin());
+        sendMessage(challengee, "DUEL_STARTED_WITH " + challenger.getLogin());
+
+        duel.setOnEnd(() -> {
+            Duel.Result res = duel.evaluate();
+            if (res == null) {
+                sendMessage(challenger, "DUEL_RESULT DRAW");
+                sendMessage(challengee, "DUEL_RESULT DRAW");
+                printLeaderboard();
+            } else {
+                if (res.winner() == challenger) {
+                    sendMessage(challenger, "DUEL_RESULT WIN");
+                    sendMessage(challengee, "DUEL_RESULT LOSE");
+                } else {
+                    sendMessage(challenger, "DUEL_RESULT LOSE");
+                    sendMessage(challengee, "DUEL_RESULT WIN");
+                }
+                ClientHandler winner = (ClientHandler) res.winner();
+                ClientHandler loser  = (ClientHandler) res.loser();
+                database.updateLeaderboard(winner.getLogin(), loser.getLogin());
+                printLeaderboard();
+            }
+        });
+    }
+
+    public static void main(String[] args) {
+        new Server().listen();
+    }
+}
