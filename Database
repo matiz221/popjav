@@ -1,0 +1,63 @@
+package server;
+
+import java.sql.*;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+public class Database {
+    private final String url;
+
+    public Database() { this("jdbc:sqlite:users.db"); }
+    public Database(String url) { this.url = url; }
+
+    public boolean authenticate(String login, String password) {
+        String sql = "SELECT 1 FROM users WHERE login = ? AND password = ? LIMIT 1";
+        try (Connection conn = DriverManager.getConnection(url);
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, login);
+            ps.setString(2, password);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        } catch (SQLException e) {
+            System.err.println("DB authenticate error: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public void updateLeaderboard(String winnerLogin, String loserLogin) {
+        String sqlWin  = "UPDATE users SET points = points + 1 WHERE login = ?";
+        String sqlLose = "UPDATE users SET points = points - 1 WHERE login = ?";
+        try (Connection conn = DriverManager.getConnection(url)) {
+            conn.setAutoCommit(false);
+            try (PreparedStatement pw = conn.prepareStatement(sqlWin);
+                 PreparedStatement pl = conn.prepareStatement(sqlLose)) {
+                pw.setString(1, winnerLogin);
+                pw.executeUpdate();
+                pl.setString(1, loserLogin);
+                pl.executeUpdate();
+                conn.commit();
+            } catch (SQLException ex) {
+                conn.rollback();
+                throw ex;
+            }
+        } catch (SQLException e) {
+            System.err.println("DB updateLeaderboard error: " + e.getMessage());
+        }
+    }
+
+    public Map<String, Integer> getLeaderboard() {
+        String sql = "SELECT login, points FROM users ORDER BY points DESC, login ASC";
+        Map<String, Integer> result = new LinkedHashMap<>();
+        try (Connection conn = DriverManager.getConnection(url);
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                result.put(rs.getString("login"), rs.getInt("points"));
+            }
+        } catch (SQLException e) {
+            System.err.println("DB getLeaderboard error: " + e.getMessage());
+        }
+        return result;
+    }
+}
